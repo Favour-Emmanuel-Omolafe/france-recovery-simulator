@@ -53,7 +53,9 @@ def simulate_comprehensive_france(
 # 2. UI & Sidebar Controls
 st.title("🇫🇷 France 2030+: Macro-Fiscal & Democratic Recovery Simulator")
 st.markdown("Stress-test the French economy by balancing deficit reduction against social stability.")
-
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Built by Favour Emmanuel Omolafe**")
+st.sidebar.markdown("---")
 st.sidebar.header("Policy Levers")
 admin_cuts = st.sidebar.slider("Administrative Savings (€B)", 0.0, 30.0, 15.0, step=1.0)
 hospital_inv = st.sidebar.slider("Hospital Reinvestment (€B)", 0.0, 10.0, 3.0, step=0.5)
