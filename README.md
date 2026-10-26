@@ -4,7 +4,7 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B.svg)](https://streamlit.io/)
 [![Data Science](https://img.shields.io/badge/Domain-Macroeconomics-green.svg)]()
 
-👉 **[Click here to launch the Live Interactive Simulator](https://share.streamlit.io/)** 
+👉 [Click here to launch the Live Interactive Simulator](https://share.streamlit.io/)
 
 ## 📌 Executive Summary
 As of October 2026, France faces a severe macroeconomic trilemma: a bloated national debt (120% of GDP), a budget deficit of 5.4% (violating EU limits), and a highly volatile social climate where aggressive austerity measures risk triggering nationwide strikes. 
