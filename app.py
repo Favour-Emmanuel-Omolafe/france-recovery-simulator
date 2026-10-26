@@ -6,8 +6,8 @@ import itertools
 
 st.set_page_config(page_title="France 2030 Simulator", layout="wide")
 
-# 1. The Core Engine (Fixed for Realistic Debt Dynamics)
-def simulate_economy(admin_cut, pension_cut, job_cut, tax_cut, hosp_inv, youth_grant, tech_inv, fuel_scarcity_lvl, war_shock, horizon=10):
+# 1. The Core Engine (Upgraded for Real French Policy)
+def simulate_economy(admin_cut, retirement_age, wealth_tax, job_cut, tax_cut, hosp_inv, youth_grant, tech_inv, fuel_scarcity_lvl, war_shock, horizon=10):
     years = [2026 + i for i in range(horizon + 1)]
     debt, deficit, unrest, gdp = np.zeros(horizon+1), np.zeros(horizon+1), np.zeros(horizon+1), np.zeros(horizon+1)
     
@@ -16,29 +16,37 @@ def simulate_economy(admin_cut, pension_cut, job_cut, tax_cut, hosp_inv, youth_g
     nom_gdp = 3100.0
 
     for t in range(horizon):
-        # Unrest Calculation
-        grievance = 55.0 + (admin_cut * 0.3) + (pension_cut * 1.8) + (job_cut * 3.5) + (tax_cut * 0.6)
+        # POLICY MATH: Retirement Age & Wealth Tax
+        pension_savings = (retirement_age - 62) * 5.0  # €5B saved for every year above 62
+        wealth_tax_rev = 4.0 if wealth_tax else 0.0    # €4B raised if Wealth Tax is active
+        
+        # 1. Unrest Calculation (Retirement Age is highly sensitive)
+        grievance = 55.0 + (admin_cut * 0.3) + ((retirement_age - 62) * 12.0) + (job_cut * 3.5) + (tax_cut * 0.6)
         grievance += (fuel_scarcity_lvl * 4.0) 
+        
+        # Social buffers and Wealth Tax popularity reduce unrest
         grievance -= (hosp_inv * 2.0) + (youth_grant * 1.5) + (tech_inv * 0.5)
+        if wealth_tax: grievance -= 5.0 
         
         unrest[t+1] = np.clip(0.6 * unrest[t] + 0.4 * grievance, 0, 100)
         strike_drag = 0.8 if unrest[t+1] >= 75.0 else 0.0
         
-        # GDP Multipliers
+        # 2. GDP Multipliers (Wealth Tax causes minor capital flight drag)
         war_drag = 0.4 if war_shock else 0.0
         fuel_drag = fuel_scarcity_lvl * 0.15
+        wealth_tax_drag = 0.05 if wealth_tax else 0.0
         
-        gdp[t+1] = 0.4 + (tax_cut * 0.05) + (tech_inv * 0.08) - (job_cut * 0.05) - fuel_drag - war_drag - strike_drag
+        gdp[t+1] = 0.4 + (tax_cut * 0.05) + (tech_inv * 0.08) - (job_cut * 0.05) - fuel_drag - war_drag - strike_drag - wealth_tax_drag
         
-        # Fiscal Balance & Deficit
+        # 3. Fiscal Balance & Deficit
         real_job_savings = job_cut * 0.5 # Unemployment benefit drag
-        net_effort = admin_cut + pension_cut + real_job_savings - hosp_inv - youth_grant - tax_cut - tech_inv
+        net_effort = admin_cut + pension_savings + wealth_tax_rev + real_job_savings - hosp_inv - youth_grant - tax_cut - tech_inv
         
         fiscal_pct = (net_effort / nom_gdp) * 100.0
         growth_div = (gdp[t+1] - 0.4) * 0.4
         deficit[t+1] = np.clip(deficit[t] - fiscal_pct - growth_div, 1.0, 12.0)
         
-        # REALISTIC DEBT DYNAMICS
+        # 4. Realistic Debt Dynamics
         war_premium = 20.0 if war_shock else 0.0
         spread = 35.0 + (10.0 * max(0, deficit[t+1] - 3.0)) + (0.5 * unrest[t+1]) + war_premium
         
@@ -48,25 +56,26 @@ def simulate_economy(admin_cut, pension_cut, job_cut, tax_cut, hosp_inv, youth_g
         
     return pd.DataFrame({'Year': years, 'Debt_GDP': debt, 'Deficit_GDP': deficit, 'Unrest_Index': unrest, 'GDP_Growth': gdp})
 
-# 2. The Auto-Solver
+# 2. The Auto-Solver (Updated for new levers)
 def find_optimal_solution(current_fuel, current_war):
     best_combo = None
     lowest_unrest = 100
     
     admin = range(0, 6, 1)  
-    pension = range(0, 16, 5)
+    ret_age = range(60, 68, 1) # Test retirement ages from 60 to 67
     job = range(0, 11, 2)
     tax = range(0, 11, 2)
+    wealth_tx_opts = [True, False]
     
-    for a, p, j, t in itertools.product(admin, pension, job, tax):
+    for a, r, j, t, w in itertools.product(admin, ret_age, job, tax, wealth_tx_opts):
         h_inv, y_grant, tech_inv = 3.0, 2.0, 3.0 
-        df_sim = simulate_economy(a, p, j, t, h_inv, y_grant, tech_inv, current_fuel, current_war)
+        df_sim = simulate_economy(a, r, w, j, t, h_inv, y_grant, tech_inv, current_fuel, current_war)
         d_def, d_unrest = df_sim['Deficit_GDP'].iloc[-1], df_sim['Unrest_Index'].iloc[-1]
         
         if d_def <= 3.0 and d_unrest < 75.0:
             if d_unrest < lowest_unrest:
                 lowest_unrest = d_unrest
-                best_combo = (a, p, j, t, h_inv, y_grant, tech_inv, d_def, d_unrest)
+                best_combo = (a, r, w, j, t, h_inv, y_grant, tech_inv, d_def, d_unrest)
                 
     return best_combo
 
@@ -77,19 +86,28 @@ fuel_shock = st.sidebar.slider("🌍 Fuel Scarcity & Energy Shock (0-5)", 0.0, 5
 war_toggle = st.sidebar.checkbox("🌍 Global Geopolitical Conflict", value=st.session_state.get('war', False))
 
 if st.sidebar.button("🤖 Auto-Solve for 3% Deficit (AI Optimizer)"):
-    with st.spinner("Calculating global shock impacts & optimal policies..."):
+    with st.spinner("Calculating optimal policies..."):
         optimal = find_optimal_solution(fuel_shock, war_toggle)
         if optimal:
             st.sidebar.success("Optimal Solution Found!")
-            for idx, key in enumerate(['admin', 'pension', 'job', 'tax', 'hosp', 'youth', 'tech']):
-                st.session_state[key] = float(optimal[idx])
+            st.session_state['admin'] = float(optimal[0])
+            st.session_state['ret_age'] = int(optimal[1])
+            st.session_state['wealth_tax'] = optimal[2]
+            st.session_state['job'] = float(optimal[3])
+            st.session_state['tax'] = float(optimal[4])
+            st.session_state['hosp'] = float(optimal[5])
+            st.session_state['youth'] = float(optimal[6])
+            st.session_state['tech'] = float(optimal[7])
         else:
             st.sidebar.error("CRITICAL: Global shocks too severe. No mathematical solution exists.")
+
+st.sidebar.header("French Political Levers")
+retire_age = st.sidebar.slider("Statutory Retirement Age", 60, 67, st.session_state.get('ret_age', 64), step=1, help="Age 62 is budget-neutral. Raising above 62 saves €5B/year but angers workers.")
+wealth_tax = st.sidebar.checkbox("Reinstate Wealth Tax (ISF)", value=st.session_state.get('wealth_tax', False), help="Generates €4B and lowers unrest, but causes minor capital flight (GDP drag).")
 
 st.sidebar.header("Economic & Tech Levers (€B)")
 tech_invest = st.sidebar.slider("Industrial & Tech Investment", 0.0, 10.0, st.session_state.get('tech', 2.0), step=1.0)
 admin_cuts = st.sidebar.slider("Admin Savings", 0.0, 5.0, st.session_state.get('admin', 2.0), step=1.0)
-pension_cuts = st.sidebar.slider("Pension Cuts", 0.0, 20.0, st.session_state.get('pension', 0.0), step=1.0)
 public_job_cuts = st.sidebar.slider("Job Cuts", 0.0, 15.0, st.session_state.get('job', 0.0), step=1.0)
 corporate_tax_cuts = st.sidebar.slider("Tax Cuts", 0.0, 20.0, st.session_state.get('tax', 0.0), step=1.0)
 
@@ -98,7 +116,7 @@ hospital_inv = st.sidebar.slider("Hospital Invest", 0.0, 10.0, st.session_state.
 student_budget = st.sidebar.slider("Youth Grants", 0.0, 10.0, st.session_state.get('youth', 2.0), step=0.5)
 
 # Run Simulation
-df_results = simulate_economy(admin_cuts, pension_cuts, public_job_cuts, corporate_tax_cuts, hospital_inv, student_budget, tech_invest, fuel_shock, war_toggle)
+df_results = simulate_economy(admin_cuts, retire_age, wealth_tax, public_job_cuts, corporate_tax_cuts, hospital_inv, student_budget, tech_invest, fuel_shock, war_toggle)
 final_debt, final_def, final_unrest, final_gdp = df_results.iloc[-1][['Debt_GDP', 'Deficit_GDP', 'Unrest_Index', 'GDP_Growth']]
 
 # Main UI
@@ -152,9 +170,9 @@ with tab1:
 with tab2:
     st.header("How the Algorithm Works")
     st.markdown("""
+    * **Political Reality:** Raising the retirement age generates €5B per year increased, but aggressively spikes the Strike Risk. Reinstating the Wealth Tax generates revenue and calms unions, but creates a slight capital flight drag on GDP.
     * **Fiscal Multipliers:** Slashing jobs reduces the deficit but directly penalizes GDP.
     * **Strike Risk:** An algorithmic threshold (0-100). If it crosses 75, a 'General Strike' penalty is applied to GDP.
     * **Unemployment Drag:** Every €1B cut in jobs only yields €0.5B in net savings due to welfare payouts.
-    * **Global Shocks:** War and Fuel Scarcity act as external penalties to growth and inflation, forcing you to adjust domestic policy to compensate.
     * **Realistic Debt Dynamics:** Economic growth dynamically reduces the debt-to-GDP ratio, while budget deficits and bond yields compound it over time.
     """)
