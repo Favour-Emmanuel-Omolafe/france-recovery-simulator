@@ -2,51 +2,45 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 import itertools
 
 st.set_page_config(page_title="France 2030 Simulator", layout="wide")
 
-# 1. The Core Engine (Upgraded for Real French Policy)
+# 1. The Core Engine 
 def simulate_economy(admin_cut, retirement_age, wealth_tax, job_cut, tax_cut, hosp_inv, youth_grant, tech_inv, fuel_scarcity_lvl, war_shock, horizon=10):
     years = [2026 + i for i in range(horizon + 1)]
     debt, deficit, unrest, gdp = np.zeros(horizon+1), np.zeros(horizon+1), np.zeros(horizon+1), np.zeros(horizon+1)
     
-    # Oct 2026 Current Crisis Baseline
     debt[0], deficit[0], unrest[0], gdp[0] = 120.0, 5.4, 55.0, 0.4 
     nom_gdp = 3100.0
 
     for t in range(horizon):
-        # POLICY MATH: Retirement Age & Wealth Tax
-        pension_savings = (retirement_age - 62) * 5.0  # €5B saved for every year above 62
-        wealth_tax_rev = 4.0 if wealth_tax else 0.0    # €4B raised if Wealth Tax is active
+        pension_savings = (retirement_age - 62) * 5.0  
+        wealth_tax_rev = 4.0 if wealth_tax else 0.0    
         
-        # 1. Unrest Calculation (Retirement Age is highly sensitive)
         grievance = 55.0 + (admin_cut * 0.3) + ((retirement_age - 62) * 12.0) + (job_cut * 3.5) + (tax_cut * 0.6)
         grievance += (fuel_scarcity_lvl * 4.0) 
         
-        # Social buffers and Wealth Tax popularity reduce unrest
         grievance -= (hosp_inv * 2.0) + (youth_grant * 1.5) + (tech_inv * 0.5)
         if wealth_tax: grievance -= 5.0 
         
         unrest[t+1] = np.clip(0.6 * unrest[t] + 0.4 * grievance, 0, 100)
         strike_drag = 0.8 if unrest[t+1] >= 75.0 else 0.0
         
-        # 2. GDP Multipliers (Wealth Tax causes minor capital flight drag)
         war_drag = 0.4 if war_shock else 0.0
         fuel_drag = fuel_scarcity_lvl * 0.15
         wealth_tax_drag = 0.05 if wealth_tax else 0.0
         
         gdp[t+1] = 0.4 + (tax_cut * 0.05) + (tech_inv * 0.08) - (job_cut * 0.05) - fuel_drag - war_drag - strike_drag - wealth_tax_drag
         
-        # 3. Fiscal Balance & Deficit
-        real_job_savings = job_cut * 0.5 # Unemployment benefit drag
+        real_job_savings = job_cut * 0.5 
         net_effort = admin_cut + pension_savings + wealth_tax_rev + real_job_savings - hosp_inv - youth_grant - tax_cut - tech_inv
         
         fiscal_pct = (net_effort / nom_gdp) * 100.0
         growth_div = (gdp[t+1] - 0.4) * 0.4
         deficit[t+1] = np.clip(deficit[t] - fiscal_pct - growth_div, 1.0, 12.0)
         
-        # 4. Realistic Debt Dynamics
         war_premium = 20.0 if war_shock else 0.0
         spread = 35.0 + (10.0 * max(0, deficit[t+1] - 3.0)) + (0.5 * unrest[t+1]) + war_premium
         
@@ -56,13 +50,13 @@ def simulate_economy(admin_cut, retirement_age, wealth_tax, job_cut, tax_cut, ho
         
     return pd.DataFrame({'Year': years, 'Debt_GDP': debt, 'Deficit_GDP': deficit, 'Unrest_Index': unrest, 'GDP_Growth': gdp})
 
-# 2. The Auto-Solver (Updated for new levers)
+# 2. The Auto-Solver 
 def find_optimal_solution(current_fuel, current_war):
     best_combo = None
     lowest_unrest = 100
     
     admin = range(0, 6, 1)  
-    ret_age = range(60, 68, 1) # Test retirement ages from 60 to 67
+    ret_age = range(60, 68, 1) 
     job = range(0, 11, 2)
     tax = range(0, 11, 2)
     wealth_tx_opts = [True, False]
@@ -102,8 +96,8 @@ if st.sidebar.button("🤖 Auto-Solve for 3% Deficit (AI Optimizer)"):
             st.sidebar.error("CRITICAL: Global shocks too severe. No mathematical solution exists.")
 
 st.sidebar.header("French Political Levers")
-retire_age = st.sidebar.slider("Statutory Retirement Age", 60, 67, st.session_state.get('ret_age', 64), step=1, help="Age 62 is budget-neutral. Raising above 62 saves €5B/year but angers workers.")
-wealth_tax = st.sidebar.checkbox("Reinstate Wealth Tax (ISF)", value=st.session_state.get('wealth_tax', False), help="Generates €4B and lowers unrest, but causes minor capital flight (GDP drag).")
+retire_age = st.sidebar.slider("Statutory Retirement Age", 60, 67, st.session_state.get('ret_age', 64), step=1)
+wealth_tax = st.sidebar.checkbox("Reinstate Wealth Tax (ISF)", value=st.session_state.get('wealth_tax', False))
 
 st.sidebar.header("Economic & Tech Levers (€B)")
 tech_invest = st.sidebar.slider("Industrial & Tech Investment", 0.0, 10.0, st.session_state.get('tech', 2.0), step=1.0)
@@ -122,7 +116,6 @@ final_debt, final_def, final_unrest, final_gdp = df_results.iloc[-1][['Debt_GDP'
 # Main UI
 st.title("🇫🇷 France 2026-2036: Crisis Optimizer")
 
-# Executive Banner at the top
 if final_def <= 3.0 and final_unrest < 75:
     st.success(f"🏆 MACROECONOMIC TRILEMMA SOLVED: Deficit stabilized at {final_def:.1f}% without triggering riots.")
 elif final_unrest >= 75:
@@ -144,11 +137,35 @@ with tab1:
 
     st.markdown("---")
     
-    # Interactive Plotly Charts
+    # Interactive Plotly Charts - UPGRADED TO WATERFALL AND GAUGE
     col_chart1, col_chart2 = st.columns(2)
     
     with col_chart1:
-        fig1 = px.line(df_results, x='Year', y='Deficit_GDP', title='Budget Deficit (% of GDP)', markers=True, color_discrete_sequence=['#ff4b4b'])
+        # Waterfall Chart Math
+        nom_gdp = 3100.0
+        pension_sav = (retire_age - 62) * 5.0
+        wealth_rev = 4.0 if wealth_tax else 0.0
+        real_job = public_job_cuts * 0.5
+        
+        imp_admin = -(admin_cuts / nom_gdp) * 100
+        imp_pens = -(pension_sav / nom_gdp) * 100
+        imp_wealth = -(wealth_rev / nom_gdp) * 100
+        imp_job = -(real_job / nom_gdp) * 100
+        imp_tax = (corporate_tax_cuts / nom_gdp) * 100
+        imp_spend = ((hospital_inv + student_budget + tech_invest) / nom_gdp) * 100
+        dynamic_effect = final_def - (5.4 + imp_admin + imp_pens + imp_wealth + imp_job + imp_tax + imp_spend)
+
+        fig1 = go.Figure(go.Waterfall(
+            name = "Deficit Bridge", orientation = "v",
+            measure = ["absolute", "relative", "relative", "relative", "relative", "relative", "total"],
+            x = ["2026 Baseline", "Austerity (Admin/Jobs)", "Pension Reform", "Wealth Tax", "New Spending/Cuts", "Growth Dynamics", "2036 Final"],
+            textposition = "outside",
+            y = [5.4, imp_admin+imp_job, imp_pens, imp_wealth, imp_tax+imp_spend, dynamic_effect, final_def],
+            decreasing = {"marker":{"color":"#29b09d"}}, # Green for deficit reduction
+            increasing = {"marker":{"color":"#ff4b4b"}}, # Red for deficit increase
+            totals = {"marker":{"color":"#0068c9"}}
+        ))
+        fig1.update_layout(title="Deficit Waterfall Bridge (% of GDP)", showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
         fig1.add_hline(y=3.0, line_dash="dot", annotation_text="EU 3% Limit", annotation_position="bottom right")
         st.plotly_chart(fig1, use_container_width=True)
         
@@ -156,14 +173,35 @@ with tab1:
         st.plotly_chart(fig2, use_container_width=True)
 
     with col_chart2:
-        fig3 = px.line(df_results, x='Year', y='Unrest_Index', title='Social Unrest Index', markers=True, color_discrete_sequence=['#ffaa00'])
-        fig3.add_hline(y=75.0, line_dash="dot", annotation_text="General Strike Threshold", annotation_position="bottom right")
+        # Strike Risk Gauge Chart
+        fig3 = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = final_unrest,
+            title = {'text': "Strike Risk Speedometer"},
+            gauge = {
+                'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                'bar': {'color': "rgba(0,0,0,0)"}, # Hide default bar, use threshold
+                'bgcolor': "white",
+                'borderwidth': 2,
+                'bordercolor': "gray",
+                'steps': [
+                    {'range': [0, 50], 'color': "#29b09d"},
+                    {'range': [50, 75], 'color': "#ffaa00"},
+                    {'range': [75, 100], 'color': "#ff4b4b"}
+                ],
+                'threshold': {
+                    'line': {'color': "white", 'width': 6},
+                    'thickness': 0.8,
+                    'value': final_unrest
+                }
+            }
+        ))
+        fig3.update_layout(paper_bgcolor='rgba(0,0,0,0)', font={'color': "white"}, height=350)
         st.plotly_chart(fig3, use_container_width=True)
         
         fig4 = px.line(df_results, x='Year', y='GDP_Growth', title='Annual GDP Growth (%)', markers=True, color_discrete_sequence=['#29b09d'])
         st.plotly_chart(fig4, use_container_width=True)
 
-    # Export Button
     csv = df_results.to_csv(index=False).encode('utf-8')
     st.download_button(label="📥 Download Scenario Data (CSV)", data=csv, file_name='france_simulation_results.csv', mime='text/csv')
 
