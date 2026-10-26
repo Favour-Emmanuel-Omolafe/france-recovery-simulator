@@ -38,7 +38,7 @@ def simulate_economy(admin_cut, pension_cut, job_cut, tax_cut, hosp_inv, youth_g
         growth_div = (gdp[t+1] - 0.4) * 0.4
         deficit[t+1] = np.clip(deficit[t] - fiscal_pct - growth_div, 1.0, 12.0)
         
-        # REALISTIC DEBT DYNAMICS (The Fix)
+        # REALISTIC DEBT DYNAMICS
         war_premium = 20.0 if war_shock else 0.0
         spread = 35.0 + (10.0 * max(0, deficit[t+1] - 3.0)) + (0.5 * unrest[t+1]) + war_premium
         
@@ -90,4 +90,71 @@ st.sidebar.header("Economic & Tech Levers (€B)")
 tech_invest = st.sidebar.slider("Industrial & Tech Investment", 0.0, 10.0, st.session_state.get('tech', 2.0), step=1.0)
 admin_cuts = st.sidebar.slider("Admin Savings", 0.0, 5.0, st.session_state.get('admin', 2.0), step=1.0)
 pension_cuts = st.sidebar.slider("Pension Cuts", 0.0, 20.0, st.session_state.get('pension', 0.0), step=1.0)
-public_job_cuts = st.sidebar
+public_job_cuts = st.sidebar.slider("Job Cuts", 0.0, 15.0, st.session_state.get('job', 0.0), step=1.0)
+corporate_tax_cuts = st.sidebar.slider("Tax Cuts", 0.0, 20.0, st.session_state.get('tax', 0.0), step=1.0)
+
+st.sidebar.header("Social Buffers (€B)")
+hospital_inv = st.sidebar.slider("Hospital Invest", 0.0, 10.0, st.session_state.get('hosp', 3.0), step=0.5)
+student_budget = st.sidebar.slider("Youth Grants", 0.0, 10.0, st.session_state.get('youth', 2.0), step=0.5)
+
+# Run Simulation
+df_results = simulate_economy(admin_cuts, pension_cuts, public_job_cuts, corporate_tax_cuts, hospital_inv, student_budget, tech_invest, fuel_shock, war_toggle)
+final_debt, final_def, final_unrest, final_gdp = df_results.iloc[-1][['Debt_GDP', 'Deficit_GDP', 'Unrest_Index', 'GDP_Growth']]
+
+# Main UI
+st.title("🇫🇷 France 2026-2036: Crisis Optimizer")
+
+# Executive Banner at the top
+if final_def <= 3.0 and final_unrest < 75:
+    st.success(f"🏆 MACROECONOMIC TRILEMMA SOLVED: Deficit stabilized at {final_def:.1f}% without triggering riots.")
+elif final_unrest >= 75:
+    st.error(f"🔥 GENERAL STRIKE: Strike Index hit {final_unrest:.1f}. The economy has shut down due to severe austerity.")
+elif final_def > 3.0:
+    st.warning(f"📉 DEBT SPIRAL: Deficit is {final_def:.1f}%. The EU has rejected your budget. Markets are panicking.")
+
+tab1, tab2 = st.tabs(["📊 Live Simulator", "🧠 Model Methodology"])
+
+with tab1:
+    with st.expander("💡 Executive Summary & Usage"):
+        st.write("Adjust the economic levers on the left to find €60B in savings. Your goal is to get the 2036 Deficit under 3.0% without pushing the Strike Risk Index over 75.")
+        
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("2036 Debt-to-GDP", f"{final_debt:.1f}%")
+    col2.metric("2036 Deficit", f"{final_def:.1f}%", "EU Compliant" if final_def <= 3.0 else "Violation", delta_color="inverse")
+    col3.metric("Strike Risk Index", f"{final_unrest:.1f}", "STRIKE TRIGGERED" if final_unrest >= 75 else "Stable", delta_color="inverse")
+    col4.metric("2036 GDP Growth", f"{final_gdp:.1f}%")
+
+    st.markdown("---")
+    
+    # Interactive Plotly Charts
+    col_chart1, col_chart2 = st.columns(2)
+    
+    with col_chart1:
+        fig1 = px.line(df_results, x='Year', y='Deficit_GDP', title='Budget Deficit (% of GDP)', markers=True, color_discrete_sequence=['#ff4b4b'])
+        fig1.add_hline(y=3.0, line_dash="dot", annotation_text="EU 3% Limit", annotation_position="bottom right")
+        st.plotly_chart(fig1, use_container_width=True)
+        
+        fig2 = px.line(df_results, x='Year', y='Debt_GDP', title='Gross Public Debt (% of GDP)', markers=True, color_discrete_sequence=['#0068c9'])
+        st.plotly_chart(fig2, use_container_width=True)
+
+    with col_chart2:
+        fig3 = px.line(df_results, x='Year', y='Unrest_Index', title='Social Unrest Index', markers=True, color_discrete_sequence=['#ffaa00'])
+        fig3.add_hline(y=75.0, line_dash="dot", annotation_text="General Strike Threshold", annotation_position="bottom right")
+        st.plotly_chart(fig3, use_container_width=True)
+        
+        fig4 = px.line(df_results, x='Year', y='GDP_Growth', title='Annual GDP Growth (%)', markers=True, color_discrete_sequence=['#29b09d'])
+        st.plotly_chart(fig4, use_container_width=True)
+
+    # Export Button
+    csv = df_results.to_csv(index=False).encode('utf-8')
+    st.download_button(label="📥 Download Scenario Data (CSV)", data=csv, file_name='france_simulation_results.csv', mime='text/csv')
+
+with tab2:
+    st.header("How the Algorithm Works")
+    st.markdown("""
+    * **Fiscal Multipliers:** Slashing jobs reduces the deficit but directly penalizes GDP.
+    * **Strike Risk:** An algorithmic threshold (0-100). If it crosses 75, a 'General Strike' penalty is applied to GDP.
+    * **Unemployment Drag:** Every €1B cut in jobs only yields €0.5B in net savings due to welfare payouts.
+    * **Global Shocks:** War and Fuel Scarcity act as external penalties to growth and inflation, forcing you to adjust domestic policy to compensate.
+    * **Realistic Debt Dynamics:** Economic growth dynamically reduces the debt-to-GDP ratio, while budget deficits and bond yields compound it over time.
+    """)
