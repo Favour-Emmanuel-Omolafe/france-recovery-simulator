@@ -1,13 +1,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.express as px
 import itertools
 
 st.set_page_config(page_title="France 2030 Simulator", layout="wide")
 
 # 1. The Core Engine
 def simulate_economy(admin_cut, pension_cut, job_cut, tax_cut, hosp_inv, youth_grant, tech_inv, fuel_scarcity_lvl, war_shock, horizon=10):
+    years = [2026 + i for i in range(horizon + 1)]
     debt, deficit, unrest, gdp = np.zeros(horizon+1), np.zeros(horizon+1), np.zeros(horizon+1), np.zeros(horizon+1)
     
     debt[0], deficit[0], unrest[0], gdp[0] = 120.0, 5.4, 55.0, 0.4 
@@ -40,7 +41,7 @@ def simulate_economy(admin_cut, pension_cut, job_cut, tax_cut, hosp_inv, youth_g
         g_nom = (gdp[t+1] + 2.0) / 100.0
         debt[t+1] = debt[t] * ((1.0 + r_eff) / (1.0 + g_nom)) + deficit[t+1]
         
-    return debt[-1], deficit[-1], unrest[-1], gdp[-1]
+    return pd.DataFrame({'Year': years, 'Debt_GDP': debt, 'Deficit_GDP': deficit, 'Unrest_Index': unrest, 'GDP_Growth': gdp})
 
 # 2. The Auto-Solver
 def find_optimal_solution(current_fuel, current_war):
@@ -54,7 +55,8 @@ def find_optimal_solution(current_fuel, current_war):
     
     for a, p, j, t in itertools.product(admin, pension, job, tax):
         h_inv, y_grant, tech_inv = 3.0, 2.0, 3.0 
-        d_debt, d_def, d_unrest, d_gdp = simulate_economy(a, p, j, t, h_inv, y_grant, tech_inv, current_fuel, current_war)
+        df_sim = simulate_economy(a, p, j, t, h_inv, y_grant, tech_inv, current_fuel, current_war)
+        d_def, d_unrest = df_sim['Deficit_GDP'].iloc[-1], df_sim['Unrest_Index'].iloc[-1]
         
         if d_def <= 3.0 and d_unrest < 75.0:
             if d_unrest < lowest_unrest:
@@ -63,32 +65,24 @@ def find_optimal_solution(current_fuel, current_war):
                 
     return best_combo
 
-# 3. UI Setup
-st.title("🇫🇷 France 2026-2036: Crisis Optimizer")
-st.markdown("Navigate domestic budget cuts while surviving global energy shocks and geopolitical conflicts. Generate long-term cash flow via Tech Investments.")
+# 3. Sidebar UI
+st.sidebar.markdown("### 🇫🇷 France 2030 Optimizer\n**Built by Favour Emmanuel Omolafe**\n---")
 
-st.sidebar.markdown("**Built by Favour Emmanuel Omolafe**\n---")
-
-fuel_shock = st.sidebar.slider("🌍 Fuel Scarcity & Energy Shock (0-5)", 0.0, 5.0, st.session_state.get('fuel', 0.0), step=1.0, help="Drives up inflation, triggering massive citizen unrest and slowing industry.")
-war_toggle = st.sidebar.checkbox("🌍 Global Geopolitical Conflict", value=st.session_state.get('war', False), help="Disrupts supply chains (GDP drop) and panics bond markets (Yield spike).")
+fuel_shock = st.sidebar.slider("🌍 Fuel Scarcity & Energy Shock (0-5)", 0.0, 5.0, st.session_state.get('fuel', 0.0), step=1.0)
+war_toggle = st.sidebar.checkbox("🌍 Global Geopolitical Conflict", value=st.session_state.get('war', False))
 
 if st.sidebar.button("🤖 Auto-Solve for 3% Deficit (AI Optimizer)"):
     with st.spinner("Calculating global shock impacts & optimal policies..."):
         optimal = find_optimal_solution(fuel_shock, war_toggle)
         if optimal:
-            st.sidebar.success("Optimal Solution Found for this Global Climate!")
-            st.session_state['admin'] = float(optimal[0])
-            st.session_state['pension'] = float(optimal[1])
-            st.session_state['job'] = float(optimal[2])
-            st.session_state['tax'] = float(optimal[3])
-            st.session_state['hosp'] = float(optimal[4])
-            st.session_state['youth'] = float(optimal[5])
-            st.session_state['tech'] = float(optimal[6])
+            st.sidebar.success("Optimal Solution Found!")
+            for idx, key in enumerate(['admin', 'pension', 'job', 'tax', 'hosp', 'youth', 'tech']):
+                st.session_state[key] = float(optimal[idx])
         else:
-            st.sidebar.error("CRITICAL: The global shocks are too severe. No mathematical solution exists without a general strike or EU default.")
+            st.sidebar.error("CRITICAL: Global shocks too severe. No mathematical solution exists.")
 
 st.sidebar.header("Economic & Tech Levers (€B)")
-tech_invest = st.sidebar.slider("Industrial & Tech Investment", 0.0, 10.0, st.session_state.get('tech', 2.0), step=1.0, help="Costs money upfront but compounds GDP growth and competitiveness over 10 years.")
+tech_invest = st.sidebar.slider("Industrial & Tech Investment", 0.0, 10.0, st.session_state.get('tech', 2.0), step=1.0)
 admin_cuts = st.sidebar.slider("Admin Savings", 0.0, 5.0, st.session_state.get('admin', 2.0), step=1.0)
 pension_cuts = st.sidebar.slider("Pension Cuts", 0.0, 20.0, st.session_state.get('pension', 0.0), step=1.0)
 public_job_cuts = st.sidebar.slider("Job Cuts", 0.0, 15.0, st.session_state.get('job', 0.0), step=1.0)
@@ -98,29 +92,57 @@ st.sidebar.header("Social Buffers (€B)")
 hospital_inv = st.sidebar.slider("Hospital Invest", 0.0, 10.0, st.session_state.get('hosp', 3.0), step=0.5)
 student_budget = st.sidebar.slider("Youth Grants", 0.0, 10.0, st.session_state.get('youth', 2.0), step=0.5)
 
-# --- UI UPGRADES (Tabs and Expanders) ---
+# Run Simulation
+df_results = simulate_economy(admin_cuts, pension_cuts, public_job_cuts, corporate_tax_cuts, hospital_inv, student_budget, tech_invest, fuel_shock, war_toggle)
+final_debt, final_def, final_unrest, final_gdp = df_results.iloc[-1][['Debt_GDP', 'Deficit_GDP', 'Unrest_Index', 'GDP_Growth']]
+
+# Main UI
+st.title("🇫🇷 France 2026-2036: Crisis Optimizer")
+
+# Executive Banner at the top
+if final_def <= 3.0 and final_unrest < 75:
+    st.success(f"🏆 MACROECONOMIC TRILEMMA SOLVED: Deficit stabilized at {final_def:.1f}% without triggering riots.")
+elif final_unrest >= 75:
+    st.error(f"🔥 GENERAL STRIKE: Strike Index hit {final_unrest:.1f}. The economy has shut down due to severe austerity.")
+elif final_def > 3.0:
+    st.warning(f"📉 DEBT SPIRAL: Deficit is {final_def:.1f}%. The EU has rejected your budget. Markets are panicking.")
+
 tab1, tab2 = st.tabs(["📊 Live Simulator", "🧠 Model Methodology"])
 
 with tab1:
-    with st.expander("💡 How to use this simulator"):
+    with st.expander("💡 Executive Summary & Usage"):
         st.write("Adjust the economic levers on the left to find €60B in savings. Your goal is to get the 2036 Deficit under 3.0% without pushing the Strike Risk Index over 75.")
         
-    # Run Simulation
-    final_debt, final_def, final_unrest, final_gdp = simulate_economy(admin_cuts, pension_cuts, public_job_cuts, corporate_tax_cuts, hospital_inv, student_budget, tech_invest, fuel_shock, war_toggle)
-
-    # Display Metrics
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("2036 Debt-to-GDP", f"{final_debt:.1f}%")
     col2.metric("2036 Deficit", f"{final_def:.1f}%", "EU Compliant" if final_def <= 3.0 else "Violation", delta_color="inverse")
     col3.metric("Strike Risk Index", f"{final_unrest:.1f}", "STRIKE TRIGGERED" if final_unrest >= 75 else "Stable", delta_color="inverse")
     col4.metric("2036 GDP Growth", f"{final_gdp:.1f}%")
 
-    if final_def <= 3.0 and final_unrest < 75:
-        st.success("🏆 MACROECONOMIC TRILEMMA SOLVED: You stabilized the debt without triggering riots.")
-    elif final_unrest >= 75:
-        st.error("🔥 GENERAL STRIKE: The economy has shut down due to severe austerity and inflation.")
-    elif final_def > 3.0:
-        st.warning("📉 DEBT SPIRAL: The EU has rejected your budget. Markets are panicking.")
+    st.markdown("---")
+    
+    # Interactive Plotly Charts
+    col_chart1, col_chart2 = st.columns(2)
+    
+    with col_chart1:
+        fig1 = px.line(df_results, x='Year', y='Deficit_GDP', title='Budget Deficit (% of GDP)', markers=True, color_discrete_sequence=['#ff4b4b'])
+        fig1.add_hline(y=3.0, line_dash="dot", annotation_text="EU 3% Limit", annotation_position="bottom right")
+        st.plotly_chart(fig1, use_container_width=True)
+        
+        fig2 = px.line(df_results, x='Year', y='Debt_GDP', title='Gross Public Debt (% of GDP)', markers=True, color_discrete_sequence=['#0068c9'])
+        st.plotly_chart(fig2, use_container_width=True)
+
+    with col_chart2:
+        fig3 = px.line(df_results, x='Year', y='Unrest_Index', title='Social Unrest Index', markers=True, color_discrete_sequence=['#ffaa00'])
+        fig3.add_hline(y=75.0, line_dash="dot", annotation_text="General Strike Threshold", annotation_position="bottom right")
+        st.plotly_chart(fig3, use_container_width=True)
+        
+        fig4 = px.line(df_results, x='Year', y='GDP_Growth', title='Annual GDP Growth (%)', markers=True, color_discrete_sequence=['#29b09d'])
+        st.plotly_chart(fig4, use_container_width=True)
+
+    # Export Button
+    csv = df_results.to_csv(index=False).encode('utf-8')
+    st.download_button(label="📥 Download Scenario Data (CSV)", data=csv, file_name='france_simulation_results.csv', mime='text/csv')
 
 with tab2:
     st.header("How the Algorithm Works")
