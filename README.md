@@ -1,6 +1,9 @@
 # 🇫🇷 France 2030: Macroeconomic Crisis Simulator
 
-![Dashboard Screenshot](phase%201.png)
+![Dashboard Screenshot 1](phase%201.png)
+![Dashboard Screenshot 2](phase%202.png)
+![Dashboard Screenshot 3](phase%203.png)
+![Dashboard Screenshot 4](phase%204.png)
 
 ## 📌 Overview
 The **France 2030 Simulator** is a prescriptive analytics engine and interactive SaaS dashboard built to solve the **Macroeconomic Trilemma**: balancing a national budget (EU 3.0% deficit compliance) while maintaining economic growth and preventing social collapse (General Strikes). 
