@@ -8,7 +8,6 @@ st.set_page_config(page_title="France 2026-2036 Crisis Optimizer", layout="wide"
 # 1. Core Economic Simulation Engine
 def simulate_economy(admin_cuts, pension_cuts, public_job_cuts, corporate_tax_cuts, hospital_inv, student_budget, tech_invest, fuel_shock, war_toggle):
     years = range(2026, 2037)
-    n_years = len(years)
     
     # Baseline dynamics
     base_debt = 112.0
@@ -156,10 +155,20 @@ tab1, tab2 = st.tabs(["📊 Live Simulator", "🧠 Model Methodology"])
 
 with tab1:
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Final Debt (% GDP)", f"{final_debt:.1f}%")
-    col2.metric("Final Deficit (% GDP)", f"{final_def:.1f}%", delta=f"{final_def - 5.5:.1f}% vs base")
-    col3.metric("Strike Risk Index", f"{final_unrest:.1f}/100", delta="High Risk" if final_unrest > 75 else "Stable", delta_color="inverse")
-    col4.metric("Avg GDP Growth", f"{final_gdp:.1f}%")
+    
+    # KPI Metrics with informative tooltips
+    col1.metric("Final Debt (% GDP)", f"{final_debt:.1f}%", help="Projected national debt ratio relative to total GDP by 2036.")
+    col2.metric("Final Deficit (% GDP)", f"{final_def:.1f}%", delta=f"{final_def - 5.5:.1f}% vs base", help="Annual budget deficit. EU rules target staying below 3.0%.")
+    
+    # Dynamic Strike Risk Status Formatting
+    unrest_status = "Stable"
+    if final_unrest >= 75:
+        unrest_status = "General Strike 🔥"
+    elif final_unrest >= 40:
+        unrest_status = "High Tension ⚠️"
+        
+    col3.metric("Strike Risk Index", f"{final_unrest:.1f}/100", delta=unrest_status, delta_color="inverse", help="Measures socio-political friction and likelihood of labor shutdowns (0-100 scale).")
+    col4.metric("Avg GDP Growth", f"{final_gdp:.1f}%", help="Average annualized economic growth over the simulation period.")
 
     st.line_chart(df_results.set_index('Year')[['Debt_GDP', 'Deficit_GDP', 'Unrest_Index']])
 
