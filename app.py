@@ -6,11 +6,16 @@ import plotly.graph_objects as go
 import streamlit as st
 
 st.set_page_config(
-    page_title="France 2026-2036: Crisis Optimizer", layout="wide"
+    page_title="France 2026-2036: Crisis Optimizer",
+    page_icon="🇫🇷",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 
-# 1. The Core Engine (Your Original Logic)
+# ==========================================
+# 1. YOUR ORIGINAL CORE SIMULATION ENGINE
+# ==========================================
 def simulate_economy(
     admin_cut,
     retirement_age,
@@ -135,7 +140,9 @@ def simulate_economy(
   })
 
 
-# 2. The Auto-Solver (Your Original Logic)
+# ==========================================
+# 2. YOUR ORIGINAL AUTO-SOLVER
+# ==========================================
 def find_optimal_solution(current_fuel, current_war, current_ecb):
   best_combo = None
   lowest_unrest = 100
@@ -187,13 +194,16 @@ def find_optimal_solution(current_fuel, current_war, current_ecb):
   return best_combo
 
 
-# 3. Sidebar UI (Your Original Controls + Your Name Attribution)
+# ==========================================
+# 3. SIDEBAR UI (Your Original Controls + Clean Grouping)
+# ==========================================
 st.sidebar.markdown(
     "### 🇫🇷 France 2030 Optimizer\n**Created & Engineered by Favour Emmanuel"
-    " Omolafe**\n---"
+    " Omolafe**"
 )
+st.sidebar.markdown("---")
 
-st.sidebar.header("Global Macro Shocks")
+st.sidebar.header("🌍 Global Macro Shocks")
 ecb_rate = st.sidebar.slider(
     "🏦 ECB Base Interest Rate (%)",
     0.0,
@@ -232,7 +242,8 @@ if st.sidebar.button("🤖 Auto-Solve for 3% Deficit (AI Optimizer)"):
           " exists."
       )
 
-st.sidebar.header("French Political Levers")
+st.sidebar.markdown("---")
+st.sidebar.header("🏛️ French Political Levers")
 retire_age = st.sidebar.slider(
     "Statutory Retirement Age",
     60,
@@ -244,7 +255,8 @@ wealth_tax = st.sidebar.checkbox(
     "Reinstate Wealth Tax (ISF)", value=st.session_state.get("wealth_tax", False)
 )
 
-st.sidebar.header("Economic & Tech Levers (€B)")
+st.sidebar.markdown("---")
+st.sidebar.header("📈 Economic & Tech Levers (€B)")
 industrial_reshoring = st.sidebar.slider(
     "🏭 Industrial Reshoring & Manufacturing Boost (€B)",
     0.0,
@@ -269,7 +281,8 @@ corporate_tax_cuts = st.sidebar.slider(
     "Tax Cuts", 0.0, 20.0, st.session_state.get("tax", 0.0), step=1.0
 )
 
-st.sidebar.header("Social Buffers (€B)")
+st.sidebar.markdown("---")
+st.sidebar.header("🛡️ Social Buffers (€B)")
 hospital_inv = st.sidebar.slider("Hospital Invest", 0.0, 10.0, 3.0, step=0.5)
 student_budget = st.sidebar.slider("Youth Grants", 0.0, 10.0, 2.0, step=0.5)
 
@@ -295,11 +308,13 @@ final_debt, final_def, final_unrest, final_gdp = df_results.iloc[-1][[
     "GDP_Growth",
 ]]
 
-# Main UI & Problem / Solution Narrative Framing
+# ==========================================
+# 4. MAIN UI (Your Original Layout + Professional Header)
+# ==========================================
 st.title("🇫🇷 France 2026-2036: Crisis Optimizer")
 st.markdown("### 👨‍💻 Created & Engineered by **Favour Emmanuel Omolafe**")
 
-# Clean, collapsible Problem & Solution card for non-technical evaluators
+# Optional clean context expander for evaluators
 with st.expander(
     "📖 Click Here to Read the Problem, Solution & How to Use This Tool",
     expanded=False,
