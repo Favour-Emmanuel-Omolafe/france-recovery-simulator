@@ -1,50 +1,104 @@
-import numpy as np
 import pandas as pd
 
-class FrancePolicyEngine:
-    def __init__(self, gdp=2800, debt=112.5, median_wage=24500, tax_rate=0.45):
-        self.gdp = gdp                      # Billions €
-        self.debt = debt                    # Percentage of GDP (~112%)
-        self.median_wage = median_wage      # Baseline gross wage
-        self.tax_rate = tax_rate            # Effective tax burden
 
-    def simulate_reforms(self, industrial_reshoring_boost, tax_cut_corp, labor_tax_shift, structural_pension_age):
-        """
-        Simulates prescriptive interventions:
-        - Bringing back industries (Industrial Reshoring) -> Direct GDP booster
-        - Smicardization & Middle-class squeeze -> Payroll tax adjustments
-        - Debt & Taxation -> Fiscal management
-        - Brain drain & Social stability -> Talent retention and risk index
-        """
-        
-        # 1. Industrial Reshoring & Manufacturing Multiplier (Boosting GDP)
-        # Bringing back industries increases domestic production, high-value exports, and local jobs.
-        industrial_gdp_multiplier = industrial_reshoring_boost * 0.018 # Each slider tick adds a strong manufacturing GDP lift
-        
-        # 2. Combating Smicardization & Middle-Class Squeeze
-        wage_growth_boost = (labor_tax_shift * 0.035) + (industrial_reshoring_boost * 0.01) 
-        adjusted_median_wage = self.median_wage * (1 + wage_growth_boost)
+def run_macro_simulation(**kwargs):
+  """Executes the complete macroeconomic simulation based on user-defined
 
-        # 3. Overall GDP Growth Rate Calculation
-        baseline_growth = 0.012 # 1.2% baseline
-        gdp_growth_rate = baseline_growth + industrial_gdp_multiplier - (0.005 if tax_cut_corp > 0.08 else 0)
-        new_gdp = self.gdp * (1 + gdp_growth_rate)
-        
-        # 4. Pension System Sustainability Index (0 to 100)
-        pension_health = min(100, 60 + (structural_pension_age - 62) * 12 + (gdp_growth_rate * 200))
+  policy levers, global shocks, and social buffers. Computes debt paths,
+  GDP growth, and dynamic civil unrest risk.
+  """
+  # Extract input parameters from Streamlit sliders
+  ecb_rate = kwargs.get("ecb_rate", 3.2)
+  energy_shock = kwargs.get("energy_shock", "Moderate")
+  retirement_age = kwargs.get("retirement_age", 64)
+  wealth_tax_isf = kwargs.get("wealth_tax_isf", False)
+  industrial_reshoring = kwargs.get("industrial_reshoring", 3.0)
+  talent_retention = kwargs.get("talent_retention", 1.5)
+  admin_savings = kwargs.get("admin_savings", 5.0)
+  public_job_cuts = kwargs.get("public_job_cuts", 2.0)
+  corporate_tax_adj = kwargs.get("corporate_tax_adj", 0.0)
+  hospital_funding = kwargs.get("hospital_funding", 3.0)
+  youth_grants = kwargs.get("youth_grants", 1.5)
 
-        # 5. Social Stability & Strike Risk Score (0 to 100, lower is better)
-        inequality_penalty = max(0, (self.median_wage - adjusted_median_wage) / 1000)
-        strike_risk_score = min(100, max(5, 40 + inequality_penalty - (industrial_reshoring_boost * 5) - (pension_health * 0.2)))
+  # ---------------------------------------------------------
+  # 1. DYNAMIC CIVIL UNREST & SOCIAL FRICTION MODELING
+  # ---------------------------------------------------------
+  # Raising retirement age past baseline 64 triggers severe public pushback
+  retirement_penalty = max(0, retirement_age - 64) * 4.5
 
-        # 6. Debt-to-GDP adjustment (Growing GDP naturally lowers the debt-to-GDP burden)
-        new_debt_ratio = max(80.0, self.debt - (gdp_growth_rate * 35) + (tax_cut_corp * 10))
+  # Energy shock penalty
+  energy_penalty = (
+      3.0 if energy_shock == "Severe" else (1.5 if energy_shock == "Moderate" else 0.0)
+  )
 
-        return {
-            "Projected GDP (€B)": round(new_gdp, 2),
-            "GDP Growth Rate (%)": round(gdp_growth_rate * 100, 2),
-            "New Debt-to-GDP (%)": round(new_debt_ratio, 2),
-            "Adjusted Median Wage (€)": round(adjusted_median_wage, 2),
-            "Pension System Sustainability Index": round(pension_health, 1),
-            "Social Strike Risk Score (0-100)": round(strike_risk_score, 1)
-        }
+  # Calculate total social friction score
+  unrest_score = (
+      (public_job_cuts * 2.0)
+      + retirement_penalty
+      + energy_penalty
+      + (max(0, ecb_rate - 3.5) * 1.5)
+      - (hospital_funding * 1.5)
+      - (youth_grants * 1.5)
+      - (2.0 if wealth_tax_isf else 0.0)
+  )
+
+  # Categorize risk index
+  if unrest_score > 11:
+    strike_risk = "🔴 High (General Strikes Likely)"
+  elif unrest_score > 5:
+    strike_risk = "🟡 Moderate (Sector Protests)"
+  else:
+    strike_risk = "🟢 Low (Socially Stable)"
+
+  # ---------------------------------------------------------
+  # 2. MACROECONOMIC & DEBT TRAJECTORY MODELING
+  # ---------------------------------------------------------
+  base_debt_2036 = 112.0
+  fiscal_relief = (
+      (admin_savings * 0.35)
+      + (public_job_cuts * 0.45)
+      + (max(0, retirement_age - 64) * 0.8)
+      + (2.5 if wealth_tax_isf else 0.0)
+  )
+  investment_drain = (industrial_reshoring * 0.15) + (talent_retention * 0.1)
+  macro_penalty = (ecb_rate * 0.25) + (energy_penalty * 0.3)
+
+  projected_debt = round(
+      base_debt_2036 - fiscal_relief + investment_drain + macro_penalty, 1
+  )
+
+  # GDP growth calculation
+  base_gdp = 1.2
+  gdp_growth = round(
+      base_gdp
+      + (industrial_reshoring * 0.06)
+      + (talent_retention * 0.08)
+      - (abs(corporate_tax_adj) * 0.03),
+      2,
+  )
+
+  # 10-Year Trajectory Dataframe for the chart
+  years = list(range(2026, 2037))
+  baseline_path = [110.0 + (i * 0.45) for i in range(len(years))]
+  
+  # Dynamic optimized path scaling based on fiscal relief
+  saving_factor = 0.3 if fiscal_relief > 8.0 else 0.15
+  optimized_path = [
+      max(95.0, 110.0 - (i * saving_factor) + (macro_penalty * 0.1))
+      for i in range(len(years))
+  ]
+
+  trajectory_df = pd.DataFrame(
+      {
+          "Baseline Debt Path (%)": baseline_path,
+          "Optimized Policy Path (%)": optimized_path,
+      },
+      index=years,
+  )
+
+  return {
+      "debt_2036": projected_debt,
+      "gdp_growth": gdp_growth,
+      "strike_risk": strike_risk,
+      "trajectory": trajectory_df,
+  }
