@@ -31,20 +31,19 @@ except ImportError:
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title=(
-        "France 2026-2036: Comprehensive Crisis & Solution Optimiser"
-    ),
+    page_title="France 2026-2036: Macroeconomic Policy & Decision Simulator",
     page_icon="🇫🇷",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ==========================================
-# 2. SIDEBAR - COMPREHENSIVE POLICY CONTROL PANEL
+# 2. SIDEBAR - POLICY CONTROL PANEL
 # ==========================================
 st.sidebar.title("🎛️ Policy Control Panel")
 st.sidebar.markdown(
-    "Pilot France's macroeconomic levers across the 2026–2036 horizon."
+    "Test how different fiscal, industrial, and social levers impact France's"
+    " 10-year outlook."
 )
 
 st.sidebar.subheader("🌍 Global Macro Shocks")
@@ -84,8 +83,8 @@ youth_grants = st.sidebar.slider("Youth & Student Support Grants", 0.0, 5.0, 1.5
 
 st.sidebar.divider()
 st.sidebar.info(
-    "💡 **Prescriptive Engine:** The model balances fiscal deficit targets"
-    " against the civil unrest threshold."
+    "💡 **Prescriptive Engine:** Balances fiscal targets against public"
+    " unrest thresholds."
 )
 
 # ==========================================
@@ -106,17 +105,51 @@ sim_results = run_macro_simulation(
 )
 
 # ==========================================
-# 4. MAIN DASHBOARD HEADER & METRICS
+# 4. MAIN HEADER & AUTHOR ATTRIBUTION
 # ==========================================
-st.title("🇫🇷 France 2026–2036: Comprehensive Crisis & Solution Optimiser")
+st.title("🇫🇷 France 2026–2036: Macroeconomic Decision Simulator")
 st.markdown(
-    "A data-driven macro-simulation web app exploring the complex trade-offs of"
-    " fiscal consolidation, industrial reshoring, brain drain, and public"
-    " unrest in France."
+    "### 👨‍💻 Created & Engineered by **Favour Emmanuel Omolafe**"
+)
+st.markdown(
+    "An interactive data product designed to solve a critical real-world"
+    " challenge: *How can a government balance long-term fiscal stability and"
+    " economic growth without triggering widespread social unrest?*"
 )
 st.divider()
 
+# ==========================================
+# 5. PROBLEM & SOLUTION EXECUTIVE SUMMARY
+# ==========================================
+with st.expander(
+    "📖 Click Here to Read the Problem, Solution & How to Use This Tool",
+    expanded=True,
+):
+  col_p, col_s = st.columns(2)
+  with col_p:
+    st.markdown("### 🔴 The Problem")
+    st.markdown(
+        "France faces massive fiscal pressures over the next decade, including"
+        " rising national debt, EU deficit constraints, and vulnerable"
+        " industries. Traditional economic models often look only at raw"
+        " numbers while ignoring the human element—leading to unexpected"
+        " public strikes and political gridlock when policies are implemented"
+        " too aggressively."
+    )
+  with col_s:
+    st.markdown("### 🟢 The Solution")
+    st.markdown(
+        "This interactive decision simulator allows policymakers and analysts"
+        " to test fiscal adjustments (like spending cuts and tax changes)"
+        " alongside **social buffers** (like healthcare and youth grants)."
+        " It models the non-linear cause-and-effect chain, showing both financial"
+        " outcomes and public unrest risk in real-time."
+    )
+
+st.write("")
+
 # Executive Summary Metric Cards driven by engine results
+st.subheader("📊 Key Simulation Results (10-Year Outlook)")
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -145,7 +178,7 @@ with col3:
 st.write("")  # Spacing
 
 # ==========================================
-# 5. ORGANIZED OUTPUT TABS
+# 6. ORGANIZED OUTPUT TABS
 # ==========================================
 tab1, tab2, tab3, tab4 = st.tabs(
     [
@@ -159,27 +192,28 @@ tab1, tab2, tab3, tab4 = st.tabs(
 with tab1:
   st.subheader("Public Debt & GDP Growth Trajectory (2026–2036)")
   st.markdown(
-      "Multi-year simulation tracking public debt paths and annual economic"
-      " growth under your chosen policy mix."
+      "This chart compares France's baseline debt path against your custom"
+      " optimized policy path over a 10-year period."
   )
   st.line_chart(sim_results.get("trajectory"))
 
 with tab2:
-  st.subheader("Deficit Waterfall Bridge")
+  st.subheader("Deficit Bridge & Fiscal Impact")
   st.markdown(
-      "Breaking down the exact contribution of baseline adjustments,"
-      " austerity, pension reforms, and macroeconomic growth dynamics."
+      "Visualizing how individual austerity measures and structural reforms"
+      " contribute toward closing France's budget deficit."
   )
   st.info(
-      "📊 *Waterfall chart integration active:* Visualizes how each lever"
-      " bridges the gap toward the EU 3% deficit target."
+      "📊 **Interactive Breakdown:** Adjust the fiscal levers in the sidebar"
+      " to see how spending cuts and administrative savings bridge the gap"
+      " toward EU targets."
   )
 
 with tab3:
-  st.subheader("Industrial Reshoring & Brain Drain Analysis")
+  st.subheader("Industrial Reshoring & Talent Retention")
   st.markdown(
-      "Evaluating the impact of manufacturing investments, medical supply"
-      " security, and R&D talent retention."
+      "Tracking the return of manufacturing capacity and R&D talent investments"
+      " funded through your chosen policy parameters."
   )
   col_a, col_b = st.columns(2)
   with col_a:
@@ -190,22 +224,22 @@ with tab3:
     st.metric("Talent Retention Index", f"Optimized at €{talent_retention}B")
 
 with tab4:
-  st.subheader("Civil Friction & Strike Risk Speedometer")
+  st.subheader("Civil Friction & Strike Risk Analysis")
   st.markdown(
-      "Monitoring the non-linear feedback loop between public job cuts,"
-      " retirement age, and general strike thresholds."
+      "Monitoring the delicate balance between government cost-cutting and"
+      " public sector satisfaction."
   )
   st.warning(
-      "⚠️ **Strike Risk Status:** Current social buffers (hospital and youth"
-      " grants) are actively offsetting labor friction from administrative"
-      " cuts."
+      "⚠️ **Social Stability Watch:** Notice how increasing social buffers"
+      " (hospital funding and youth grants) helps absorb the friction caused"
+      " by administrative job cuts."
   )
 
 # ==========================================
-# 6. FOOTER / METADATA
+# 7. FOOTER / METADATA
 # ==========================================
 st.divider()
 st.markdown(
-    "*Engineered with Python (Backend Logic) & Streamlit (Interactive Data"
-    " Product).* Designed for policy scenario analysis."
+    "*Designed and Developed by **Favour Emmanuel Omolafe** | Powered by Python"
+    " & Streamlit.*"
 )
