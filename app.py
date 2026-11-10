@@ -14,7 +14,7 @@ st.set_page_config(
 
 
 # ==========================================
-# 1. YOUR ORIGINAL CORE SIMULATION ENGINE
+# 1. YOUR ORIGINAL CORE SIMULATION ENGINE (100% UNTOUCHED)
 # ==========================================
 def simulate_economy(
     admin_cut,
@@ -43,7 +43,6 @@ def simulate_economy(
   nom_gdp = 3100.0
 
   for t in range(horizon):
-    # DEMOGRAPHIC REALITY: Savings compound as the population ages over the 10 years
     demographic_multiplier = 1.0 + (t * 0.03)
     base_pension_savings = (retirement_age - 62) * 4.5
     pension_savings = (
@@ -63,7 +62,6 @@ def simulate_economy(
     )
     grievance += fuel_scarcity_lvl * 4.0
 
-    # Industrial reshoring and tech investments lower social unrest by creating secure, high-skill regional jobs
     grievance -= (
         (hosp_inv * 2.0)
         + (youth_grant * 1.5)
@@ -80,7 +78,6 @@ def simulate_economy(
     fuel_drag = fuel_scarcity_lvl * 0.15
     wealth_tax_drag = 0.05 if wealth_tax else 0.0
 
-    # INDUSTRIAL RESHORING GDP BOOST: Bringing back industries directly compounds GDP growth
     industrial_gdp_boost = industrial_reshoring * 0.08
 
     gdp[t + 1] = (
@@ -114,7 +111,6 @@ def simulate_economy(
         deficit[t] - fiscal_pct - growth_div, 1.0, 15.0
     )
 
-    # MONETARY REALITY: The ECB controls the baseline borrowing cost
     war_premium = 20.0 if war_shock else 0.0
     risk_spread = (
         (10.0 * max(0, deficit[t + 1] - 3.0))
@@ -195,7 +191,7 @@ def find_optimal_solution(current_fuel, current_war, current_ecb):
 
 
 # ==========================================
-# 3. SIDEBAR UI (Your Original Controls + Clean Grouping)
+# 3. SIDEBAR UI (Cleanly Grouped Controls)
 # ==========================================
 st.sidebar.markdown(
     "### 🇫🇷 France 2030 Optimizer\n**Created & Engineered by Favour Emmanuel"
@@ -210,10 +206,6 @@ ecb_rate = st.sidebar.slider(
     5.0,
     st.session_state.get("ecb", 2.5),
     step=0.25,
-    help=(
-        "Set by Frankfurt. High rates crush debt sustainability even if domestic"
-        " budgets are balanced."
-    ),
 )
 fuel_shock = st.sidebar.slider(
     "🌍 Fuel Scarcity & Energy Shock (0-5)",
@@ -227,7 +219,7 @@ war_toggle = st.sidebar.checkbox(
 )
 
 if st.sidebar.button("🤖 Auto-Solve for 3% Deficit (AI Optimizer)"):
-  with st.spinner("Calculating ECB impacts & optimal policies..."):
+  with st.spinner("Calculating optimal macroeconomic solutions..."):
     optimal = find_optimal_solution(fuel_shock, war_toggle, ecb_rate)
     if optimal:
       st.sidebar.success("Optimal Solution Found!")
@@ -237,10 +229,7 @@ if st.sidebar.button("🤖 Auto-Solve for 3% Deficit (AI Optimizer)"):
       st.session_state["job"] = float(optimal[3])
       st.session_state["tax"] = float(optimal[4])
     else:
-      st.sidebar.error(
-          "CRITICAL: Global conditions too severe. No mathematical solution"
-          " exists."
-      )
+      st.sidebar.error("CRITICAL: Global conditions too severe.")
 
 st.sidebar.markdown("---")
 st.sidebar.header("🏛️ French Political Levers")
@@ -263,10 +252,6 @@ industrial_reshoring = st.sidebar.slider(
     10.0,
     3.0,
     step=1.0,
-    help=(
-        "Brings back factories and domestic production to directly increase GDP"
-        " growth."
-    ),
 )
 tech_invest = st.sidebar.slider(
     "Industrial & Tech Investment", 0.0, 10.0, 3.0, step=1.0
@@ -309,31 +294,27 @@ final_debt, final_def, final_unrest, final_gdp = df_results.iloc[-1][[
 ]]
 
 # ==========================================
-# 4. MAIN UI (Your Original Layout + Professional Header)
+# 4. PROFESSIONAL EXECUTIVE INTERFACE & NARRATIVE
 # ==========================================
 st.title("🇫🇷 France 2026-2036: Crisis Optimizer")
 st.markdown("### 👨‍💻 Created & Engineered by **Favour Emmanuel Omolafe**")
 
-# Optional clean context expander for evaluators
-with st.expander(
-    "📖 Click Here to Read the Problem, Solution & How to Use This Tool",
-    expanded=False,
-):
+# ALWAYS-VISIBLE Executive Context Card (Instantly non-technical friendly)
+with st.container():
+  st.markdown("#### 🎯 Executive Decision Brief")
   col_p, col_s = st.columns(2)
   with col_p:
-    st.markdown("### 🔴 The Problem")
-    st.markdown(
-        "France faces severe fiscal constraints, strict EU deficit targets,"
-        " and aging demographic pressures. Traditional models isolate budget"
-        " math from human impact, ignoring how aggressive austerity triggers"
-        " general strikes and political deadlock."
+    st.info(
+        "**🔴 The Core Problem:**\nFrance faces massive fiscal pressures,"
+        " aging demographics, and strict EU debt constraints. Traditional"
+        " models ignore the human element—leading to general strikes when"
+        " austerity is applied too aggressively."
     )
   with col_s:
-    st.markdown("### 🟢 The Solution")
-    st.markdown(
-        "This interactive macro-simulator balances fiscal consolidation and"
-        " industrial reshoring against a real-time Strike Risk Index and social"
-        " buffers, allowing users to discover viable economic pathways."
+    st.success(
+        "**🟢 The Solution Tool:**\nThis simulator models how policymakers can"
+        " balance budgets and reshore manufacturing while monitoring social"
+        " stability in real time, avoiding economic deadlocks."
     )
 
 st.markdown("---")
