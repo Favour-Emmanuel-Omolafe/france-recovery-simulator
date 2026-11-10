@@ -1,244 +1,504 @@
+import itertools
+import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
-# Import your actual simulation engine backend
-try:
-  from simulator_engine import run_macro_simulation
-except ImportError:
-  # Fallback stub in case engine is named differently in your repo
-  def run_macro_simulation(**kwargs):
-    return {
-        "debt_2036": 108.4,
-        "gdp_growth": 1.4,
-        "strike_risk": "Moderate",
-        "trajectory": pd.DataFrame(
-            {
-                "Baseline Debt Path (%)": [110.0, 111.5, 112.8, 114.0, 115.2],
-                "Optimized Policy Path (%)": [
-                    110.0,
-                    109.2,
-                    108.4,
-                    107.5,
-                    106.8,
-                ],
-            },
-            index=[2026, 2027, 2028, 2029, 2030],
-        ),
-    }
-
-
-# ==========================================
-# 1. PAGE CONFIGURATION
-# ==========================================
 st.set_page_config(
-    page_title="France 2026-2036: Macroeconomic Policy & Decision Simulator",
-    page_icon="🇫🇷",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="France 2026-2036: Crisis Optimizer", layout="wide"
 )
 
-# ==========================================
-# 2. SIDEBAR - POLICY CONTROL PANEL
-# ==========================================
-st.sidebar.title("🎛️ Policy Control Panel")
+
+# 1. The Core Engine (Your Original Logic)
+def simulate_economy(
+    admin_cut,
+    retirement_age,
+    wealth_tax,
+    job_cut,
+    tax_cut,
+    hosp_inv,
+    youth_grant,
+    tech_inv,
+    industrial_reshoring,
+    fuel_scarcity_lvl,
+    war_shock,
+    ecb_rate,
+    horizon=10,
+):
+  years = [2026 + i for i in range(horizon + 1)]
+  debt, deficit, unrest, gdp = (
+      np.zeros(horizon + 1),
+      np.zeros(horizon + 1),
+      np.zeros(horizon + 1),
+      np.zeros(horizon + 1),
+  )
+
+  debt[0], deficit[0], unrest[0], gdp[0] = 120.0, 5.4, 55.0, 0.4
+  nom_gdp = 3100.0
+
+  for t in range(horizon):
+    # DEMOGRAPHIC REALITY: Savings compound as the population ages over the 10 years
+    demographic_multiplier = 1.0 + (t * 0.03)
+    base_pension_savings = (retirement_age - 62) * 4.5
+    pension_savings = (
+        base_pension_savings * demographic_multiplier
+        if retirement_age > 62
+        else base_pension_savings
+    )
+
+    wealth_tax_rev = 4.0 if wealth_tax else 0.0
+
+    grievance = (
+        55.0
+        + (admin_cut * 0.3)
+        + ((retirement_age - 62) * 12.0)
+        + (job_cut * 3.5)
+        + (tax_cut * 0.6)
+    )
+    grievance += fuel_scarcity_lvl * 4.0
+
+    # Industrial reshoring and tech investments lower social unrest by creating secure, high-skill regional jobs
+    grievance -= (
+        (hosp_inv * 2.0)
+        + (youth_grant * 1.5)
+        + (tech_inv * 0.5)
+        + (industrial_reshoring * 1.2)
+    )
+    if wealth_tax:
+      grievance -= 5.0
+
+    unrest[t + 1] = np.clip(0.6 * unrest[t] + 0.4 * grievance, 0, 100)
+    strike_drag = 0.8 if unrest[t + 1] >= 75.0 else 0.0
+
+    war_drag = 0.4 if war_shock else 0.0
+    fuel_drag = fuel_scarcity_lvl * 0.15
+    wealth_tax_drag = 0.05 if wealth_tax else 0.0
+
+    # INDUSTRIAL RESHORING GDP BOOST: Bringing back industries directly compounds GDP growth
+    industrial_gdp_boost = industrial_reshoring * 0.08
+
+    gdp[t + 1] = (
+        0.4
+        + (tax_cut * 0.05)
+        + (tech_inv * 0.08)
+        + industrial_gdp_boost
+        - (job_cut * 0.05)
+        - fuel_drag
+        - war_drag
+        - strike_drag
+        - wealth_tax_drag
+    )
+
+    real_job_savings = job_cut * 0.5
+    net_effort = (
+        admin_cut
+        + pension_savings
+        + wealth_tax_rev
+        + real_job_savings
+        - hosp_inv
+        - youth_grant
+        - tax_cut
+        - tech_inv
+        - industrial_reshoring
+    )
+
+    fiscal_pct = (net_effort / nom_gdp) * 100.0
+    growth_div = (gdp[t + 1] - 0.4) * 0.4
+    deficit[t + 1] = np.clip(
+        deficit[t] - fiscal_pct - growth_div, 1.0, 15.0
+    )
+
+    # MONETARY REALITY: The ECB controls the baseline borrowing cost
+    war_premium = 20.0 if war_shock else 0.0
+    risk_spread = (
+        (10.0 * max(0, deficit[t + 1] - 3.0))
+        + (0.5 * unrest[t + 1])
+        + war_premium
+    )
+
+    r_eff = (ecb_rate + (risk_spread / 100.0)) / 100.0
+    g_nom = (gdp[t + 1] + 2.0) / 100.0
+
+    interest_burden = debt[t] * r_eff
+    debt_reduction_from_growth = debt[t] * g_nom
+    debt[t + 1] = (
+        debt[t] + deficit[t + 1] + interest_burden - debt_reduction_from_growth
+    )
+
+  return pd.DataFrame({
+      "Year": years,
+      "Debt_GDP": debt,
+      "Deficit_GDP": deficit,
+      "Unrest_Index": unrest,
+      "GDP_Growth": gdp,
+  })
+
+
+# 2. The Auto-Solver (Your Original Logic)
+def find_optimal_solution(current_fuel, current_war, current_ecb):
+  best_combo = None
+  lowest_unrest = 100
+
+  admin = range(0, 6, 1)
+  ret_age = range(60, 68, 1)
+  job = range(0, 11, 2)
+  tax = range(0, 11, 2)
+  wealth_tx_opts = [True, False]
+
+  for a, r, j, t, w in itertools.product(admin, ret_age, job, tax, wealth_tx_opts):
+    h_inv, y_grant, tech_inv, ind_resh = 3.0, 2.0, 3.0, 2.0
+    df_sim = simulate_economy(
+        a,
+        r,
+        w,
+        j,
+        t,
+        h_inv,
+        y_grant,
+        tech_inv,
+        ind_resh,
+        current_fuel,
+        current_war,
+        current_ecb,
+    )
+    d_def, d_unrest = (
+        df_sim["Deficit_GDP"].iloc[-1],
+        df_sim["Unrest_Index"].iloc[-1],
+    )
+
+    if d_def <= 3.0 and d_unrest < 75.0:
+      if d_unrest < lowest_unrest:
+        lowest_unrest = d_unrest
+        best_combo = (
+            a,
+            r,
+            w,
+            j,
+            t,
+            h_inv,
+            y_grant,
+            tech_inv,
+            ind_resh,
+            d_def,
+            d_unrest,
+        )
+
+  return best_combo
+
+
+# 3. Sidebar UI (Your Original Controls + Your Name Attribution)
 st.sidebar.markdown(
-    "Test how different fiscal, industrial, and social levers impact France's"
-    " 10-year outlook."
+    "### 🇫🇷 France 2030 Optimizer\n**Created & Engineered by Favour Emmanuel"
+    " Omolafe**\n---"
 )
 
-st.sidebar.subheader("🌍 Global Macro Shocks")
+st.sidebar.header("Global Macro Shocks")
 ecb_rate = st.sidebar.slider(
-    "ECB Interest Rate Baseline (%)", 0.0, 6.0, 3.2, 0.2
+    "🏦 ECB Base Interest Rate (%)",
+    0.0,
+    5.0,
+    st.session_state.get("ecb", 2.5),
+    step=0.25,
+    help=(
+        "Set by Frankfurt. High rates crush debt sustainability even if domestic"
+        " budgets are balanced."
+    ),
 )
-energy_shock = st.sidebar.selectbox(
-    "Energy / Fuel Scarcity Shock", ["Low", "Moderate", "Severe"]
+fuel_shock = st.sidebar.slider(
+    "🌍 Fuel Scarcity & Energy Shock (0-5)",
+    0.0,
+    5.0,
+    st.session_state.get("fuel", 0.0),
+    step=1.0,
+)
+war_toggle = st.sidebar.checkbox(
+    "🌍 Global Geopolitical Conflict", value=st.session_state.get("war", False)
 )
 
-st.sidebar.subheader("🏛️ French Political Levers")
-retirement_age = st.sidebar.slider(
-    "Statutory Retirement Age", 62, 67, 64, 1
+if st.sidebar.button("🤖 Auto-Solve for 3% Deficit (AI Optimizer)"):
+  with st.spinner("Calculating ECB impacts & optimal policies..."):
+    optimal = find_optimal_solution(fuel_shock, war_toggle, ecb_rate)
+    if optimal:
+      st.sidebar.success("Optimal Solution Found!")
+      st.session_state["admin"] = float(optimal[0])
+      st.session_state["ret_age"] = int(optimal[1])
+      st.session_state["wealth_tax"] = optimal[2]
+      st.session_state["job"] = float(optimal[3])
+      st.session_state["tax"] = float(optimal[4])
+    else:
+      st.sidebar.error(
+          "CRITICAL: Global conditions too severe. No mathematical solution"
+          " exists."
+      )
+
+st.sidebar.header("French Political Levers")
+retire_age = st.sidebar.slider(
+    "Statutory Retirement Age",
+    60,
+    67,
+    st.session_state.get("ret_age", 64),
+    step=1,
 )
-wealth_tax_isf = st.sidebar.checkbox(
-    "Reinstate Solidarity Tax on Wealth (ISF)", value=False
+wealth_tax = st.sidebar.checkbox(
+    "Reinstate Wealth Tax (ISF)", value=st.session_state.get("wealth_tax", False)
 )
 
-st.sidebar.subheader("🏗️ Structural Growth Levers (€B)")
+st.sidebar.header("Economic & Tech Levers (€B)")
 industrial_reshoring = st.sidebar.slider(
-    "Industrial Reshoring & Factories", 0.0, 10.0, 3.0, 0.5
+    "🏭 Industrial Reshoring & Manufacturing Boost (€B)",
+    0.0,
+    10.0,
+    3.0,
+    step=1.0,
+    help=(
+        "Brings back factories and domestic production to directly increase GDP"
+        " growth."
+    ),
 )
-talent_retention = st.sidebar.slider(
-    "Top-Tier Talent Retention & R&D", 0.0, 5.0, 1.5, 0.25
+tech_invest = st.sidebar.slider(
+    "Industrial & Tech Investment", 0.0, 10.0, 3.0, step=1.0
 )
-
-st.sidebar.subheader("💼 Standard Fiscal Levers (€B)")
-admin_savings = st.sidebar.slider("Administrative Savings", 0.0, 15.0, 5.0, 0.5)
-public_job_cuts = st.sidebar.slider("Public Job Rationalisation", 0.0, 10.0, 2.0, 0.5)
-corporate_tax_adj = st.sidebar.slider(
-    "Corporate Tax Adjustment (%)", -5.0, 5.0, 0.0, 0.5
+admin_cuts = st.sidebar.slider(
+    "Admin Savings", 0.0, 5.0, st.session_state.get("admin", 2.0), step=1.0
 )
-
-st.sidebar.subheader("🛡️ Social Buffers (€B)")
-hospital_funding = st.sidebar.slider("Hospital & Healthcare Funding", 0.0, 8.0, 3.0, 0.5)
-youth_grants = st.sidebar.slider("Youth & Student Support Grants", 0.0, 5.0, 1.5, 0.25)
-
-st.sidebar.divider()
-st.sidebar.info(
-    "💡 **Prescriptive Engine:** Balances fiscal targets against public"
-    " unrest thresholds."
+public_job_cuts = st.sidebar.slider(
+    "Job Cuts", 0.0, 15.0, st.session_state.get("job", 0.0), step=1.0
 )
-
-# ==========================================
-# 3. RUN SIMULATION WITH CURRENT INPUTS
-# ==========================================
-sim_results = run_macro_simulation(
-    ecb_rate=ecb_rate,
-    energy_shock=energy_shock,
-    retirement_age=retirement_age,
-    wealth_tax_isf=wealth_tax_isf,
-    industrial_reshoring=industrial_reshoring,
-    talent_retention=talent_retention,
-    admin_savings=admin_savings,
-    public_job_cuts=public_job_cuts,
-    corporate_tax_adj=corporate_tax_adj,
-    hospital_funding=hospital_funding,
-    youth_grants=youth_grants,
+corporate_tax_cuts = st.sidebar.slider(
+    "Tax Cuts", 0.0, 20.0, st.session_state.get("tax", 0.0), step=1.0
 )
 
-# ==========================================
-# 4. MAIN HEADER & AUTHOR ATTRIBUTION
-# ==========================================
-st.title("🇫🇷 France 2026–2036: Macroeconomic Decision Simulator")
-st.markdown(
-    "### 👨‍💻 Created & Engineered by **Favour Emmanuel Omolafe**"
-)
-st.markdown(
-    "An interactive data product designed to solve a critical real-world"
-    " challenge: *How can a government balance long-term fiscal stability and"
-    " economic growth without triggering widespread social unrest?*"
-)
-st.divider()
+st.sidebar.header("Social Buffers (€B)")
+hospital_inv = st.sidebar.slider("Hospital Invest", 0.0, 10.0, 3.0, step=0.5)
+student_budget = st.sidebar.slider("Youth Grants", 0.0, 10.0, 2.0, step=0.5)
 
-# ==========================================
-# 5. PROBLEM & SOLUTION EXECUTIVE SUMMARY
-# ==========================================
+# Run Simulation
+df_results = simulate_economy(
+    admin_cuts,
+    retire_age,
+    wealth_tax,
+    public_job_cuts,
+    corporate_tax_cuts,
+    hospital_inv,
+    student_budget,
+    tech_invest,
+    industrial_reshoring,
+    fuel_shock,
+    war_toggle,
+    ecb_rate,
+)
+final_debt, final_def, final_unrest, final_gdp = df_results.iloc[-1][[
+    "Debt_GDP",
+    "Deficit_GDP",
+    "Unrest_Index",
+    "GDP_Growth",
+]]
+
+# Main UI & Problem / Solution Narrative Framing
+st.title("🇫🇷 France 2026-2036: Crisis Optimizer")
+st.markdown("### 👨‍💻 Created & Engineered by **Favour Emmanuel Omolafe**")
+
+# Clean, collapsible Problem & Solution card for non-technical evaluators
 with st.expander(
     "📖 Click Here to Read the Problem, Solution & How to Use This Tool",
-    expanded=True,
+    expanded=False,
 ):
   col_p, col_s = st.columns(2)
   with col_p:
     st.markdown("### 🔴 The Problem")
     st.markdown(
-        "France faces massive fiscal pressures over the next decade, including"
-        " rising national debt, EU deficit constraints, and vulnerable"
-        " industries. Traditional economic models often look only at raw"
-        " numbers while ignoring the human element—leading to unexpected"
-        " public strikes and political gridlock when policies are implemented"
-        " too aggressively."
+        "France faces severe fiscal constraints, strict EU deficit targets,"
+        " and aging demographic pressures. Traditional models isolate budget"
+        " math from human impact, ignoring how aggressive austerity triggers"
+        " general strikes and political deadlock."
     )
   with col_s:
     st.markdown("### 🟢 The Solution")
     st.markdown(
-        "This interactive decision simulator allows policymakers and analysts"
-        " to test fiscal adjustments (like spending cuts and tax changes)"
-        " alongside **social buffers** (like healthcare and youth grants)."
-        " It models the non-linear cause-and-effect chain, showing both financial"
-        " outcomes and public unrest risk in real-time."
+        "This interactive macro-simulator balances fiscal consolidation and"
+        " industrial reshoring against a real-time Strike Risk Index and social"
+        " buffers, allowing users to discover viable economic pathways."
     )
 
-st.write("")
+st.markdown("---")
 
-# Executive Summary Metric Cards driven by engine results
-st.subheader("📊 Key Simulation Results (10-Year Outlook)")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-  st.metric(
-      label="Projected Debt-to-GDP (2036)",
-      value=f"{sim_results.get('debt_2036', 108.4)}%",
-      delta="-1.2% vs baseline",
-      delta_color="inverse",
+if final_def <= 3.0 and final_unrest < 75:
+  st.success(
+      f"🏆 MACROECONOMIC TRILEMMA SOLVED: Deficit stabilized at"
+      f" {final_def:.1f}% without triggering riots."
+  )
+elif final_unrest >= 75:
+  st.error(
+      f"🔥 GENERAL STRIKE: Strike Index hit {final_unrest:.1f}. The economy has"
+      " shut down due to severe austerity."
+  )
+elif final_def > 3.0:
+  st.warning(
+      f"📉 DEBT SPIRAL: Deficit is {final_def:.1f}%. The EU has rejected your"
+      " budget. Markets are panicking."
   )
 
-with col2:
-  st.metric(
-      label="Average GDP Growth Rate",
-      value=f"{sim_results.get('gdp_growth', 1.4)}%",
-      delta="+0.3% efficiency",
-  )
-
-with col3:
-  st.metric(
-      label="Civil Unrest Risk Index",
-      value=sim_results.get("strike_risk", "Moderate"),
-      delta="Social Threshold",
-      delta_color="inverse",
-  )
-
-st.write("")  # Spacing
-
-# ==========================================
-# 6. ORGANIZED OUTPUT TABS
-# ==========================================
-tab1, tab2, tab3, tab4 = st.tabs(
-    [
-        "📈 Long-Term Trajectory",
-        "🌉 Deficit Waterfall",
-        "🏗️ Structural & Industrial",
-        "⚠️ Social Unrest Risk",
-    ]
-)
+tab1, tab2 = st.tabs(["📊 Live Simulator", "🧠 Model Methodology"])
 
 with tab1:
-  st.subheader("Public Debt & GDP Growth Trajectory (2026–2036)")
-  st.markdown(
-      "This chart compares France's baseline debt path against your custom"
-      " optimized policy path over a 10-year period."
+  col1, col2, col3, col4 = st.columns(4)
+  col1.metric("2036 Debt-to-GDP", f"{final_debt:.1f}%")
+  col2.metric(
+      "2036 Deficit",
+      f"{final_def:.1f}%",
+      "EU Compliant" if final_def <= 3.0 else "Violation",
+      delta_color="inverse",
   )
-  st.line_chart(sim_results.get("trajectory"))
+  col3.metric(
+      "Strike Risk Index",
+      f"{final_unrest:.1f}",
+      "STRIKE TRIGGERED" if final_unrest >= 75 else "Stable",
+      delta_color="inverse",
+  )
+  col4.metric("2036 GDP Growth", f"{final_gdp:.1f}%", "Industrial Boost Active")
+
+  st.markdown("---")
+
+  col_chart1, col_chart2 = st.columns(2)
+
+  with col_chart1:
+    nom_gdp = 3100.0
+    avg_pens_sav = ((retire_age - 62) * 4.5) * 1.15
+    wealth_rev = 4.0 if wealth_tax else 0.0
+    real_job = public_job_cuts * 0.5
+
+    imp_admin = -(admin_cuts / nom_gdp) * 100
+    imp_pens = -(avg_pens_sav / nom_gdp) * 100
+    imp_wealth = -(wealth_rev / nom_gdp) * 100
+    imp_job = -(real_job / nom_gdp) * 100
+    imp_tax = (corporate_tax_cuts / nom_gdp) * 100
+    imp_spend = (
+        (hospital_inv + student_budget + tech_invest + industrial_reshoring)
+        / nom_gdp
+    ) * 100
+    dynamic_effect = final_def - (
+        5.4
+        + imp_admin
+        + imp_pens
+        + imp_wealth
+        + imp_job
+        + imp_tax
+        + imp_spend
+    )
+
+    fig1 = go.Figure(
+        go.Waterfall(
+            name="Deficit Bridge",
+            orientation="v",
+            measure=[
+                "absolute",
+                "relative",
+                "relative",
+                "relative",
+                "relative",
+                "relative",
+                "total",
+            ],
+            x=[
+                "2026 Baseline",
+                "Austerity (Admin/Jobs)",
+                "Pension Reform",
+                "Wealth Tax",
+                "New Spending/Cuts",
+                "ECB & Growth Dynamics",
+                "2036 Final",
+            ],
+            textposition="outside",
+            y=[
+                5.4,
+                imp_admin + imp_job,
+                imp_pens,
+                imp_wealth,
+                imp_tax + imp_spend,
+                dynamic_effect,
+                final_def,
+            ],
+            decreasing={"marker": {"color": "#29b09d"}},
+            increasing={"marker": {"color": "#ff4b4b"}},
+            totals={"marker": {"color": "#0068c9"}},
+        )
+    )
+    fig1.update_layout(
+        title="Deficit Waterfall Bridge (% of GDP)",
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    fig1.add_hline(y=3.0, line_dash="dot")
+    st.plotly_chart(fig1, use_container_width=True)
+
+    fig2 = px.line(
+        df_results,
+        x="Year",
+        y="Debt_GDP",
+        title="Gross Public Debt (% of GDP)",
+        markers=True,
+        color_discrete_sequence=["#0068c9"],
+    )
+    st.plotly_chart(fig2, use_container_width=True)
+
+  with col_chart2:
+    fig3 = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=final_unrest,
+            title={"text": "Strike Risk Speedometer"},
+            gauge={
+                "axis": {
+                    "range": [0, 100],
+                    "tickwidth": 1,
+                    "tickcolor": "white",
+                },
+                "bar": {"color": "rgba(0,0,0,0)"},
+                "bgcolor": "white",
+                "borderwidth": 2,
+                "bordercolor": "gray",
+                "steps": [
+                    {"range": [0, 50], "color": "#29b09d"},
+                    {"range": [50, 75], "color": "#ffaa00"},
+                    {"range": [75, 100], "color": "#ff4b4b"},
+                ],
+                "threshold": {
+                    "line": {"color": "white", "width": 6},
+                    "thickness": 0.8,
+                    "value": final_unrest,
+                },
+            },
+        )
+    )
+    fig3.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", font={"color": "white"}, height=350
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+
+    fig4 = px.line(
+        df_results,
+        x="Year",
+        y="GDP_Growth",
+        title="Annual GDP Growth (%)",
+        markers=True,
+        color_discrete_sequence=["#29b09d"],
+    )
+    st.plotly_chart(fig4, use_container_width=True)
 
 with tab2:
-  st.subheader("Deficit Bridge & Fiscal Impact")
-  st.markdown(
-      "Visualizing how individual austerity measures and structural reforms"
-      " contribute toward closing France's budget deficit."
-  )
-  st.info(
-      "📊 **Interactive Breakdown:** Adjust the fiscal levers in the sidebar"
-      " to see how spending cuts and administrative savings bridge the gap"
-      " toward EU targets."
-  )
+  st.header("How the Algorithm Works")
+  st.markdown("""
+    * **Industrial Reshoring Multiplier:** Simulates how bringing back domestic manufacturing power and factories directly lifts annual GDP growth and stabilizes regional employment.
+    * **Monetary Policy constraint:** The ECB sets base interest rates. Even with a perfectly balanced domestic budget, high ECB rates compound the national debt burden and force a deficit crisis.
+    * **Non-Linear Demographics:** Pension savings are not flat. Due to an aging population, the financial impact of adjusting the retirement age compounds over the 10-year simulation horizon.
+    * **Political Reality:** Reinstating the Wealth Tax generates revenue and calms unions, but creates a slight capital flight drag on GDP.
+    * **Fiscal Multipliers:** Slashing jobs reduces the deficit but directly penalizes GDP.
+    """)
 
-with tab3:
-  st.subheader("Industrial Reshoring & Talent Retention")
-  st.markdown(
-      "Tracking the return of manufacturing capacity and R&D talent investments"
-      " funded through your chosen policy parameters."
-  )
-  col_a, col_b = st.columns(2)
-  with col_a:
-    st.metric(
-        "Industrial Capacity Boost", f"€{industrial_reshoring}B Invested"
-    )
-  with col_b:
-    st.metric("Talent Retention Index", f"Optimized at €{talent_retention}B")
-
-with tab4:
-  st.subheader("Civil Friction & Strike Risk Analysis")
-  st.markdown(
-      "Monitoring the delicate balance between government cost-cutting and"
-      " public sector satisfaction."
-  )
-  st.warning(
-      "⚠️ **Social Stability Watch:** Notice how increasing social buffers"
-      " (hospital funding and youth grants) helps absorb the friction caused"
-      " by administrative job cuts."
-  )
-
-# ==========================================
-# 7. FOOTER / METADATA
-# ==========================================
-st.divider()
+# Footer Attribution
+st.markdown("---")
 st.markdown(
     "*Designed and Developed by **Favour Emmanuel Omolafe** | Powered by Python"
     " & Streamlit.*"
